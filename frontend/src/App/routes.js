@@ -15,6 +15,7 @@ import { Guide, GuideIndex, BadgeIndex } from "../Pages/Guide";
 import { FCRoutes } from "../Pages/FC";
 import { AuthRoutes } from "../Pages/Auth";
 import { ISKh, ISKhCalc } from "../Pages/ISKh";
+import ProfilePage from "../Pages/Profile";
 
 function LoginRequired() {
   return <b>Login Required!</b>;
@@ -54,6 +55,9 @@ export function Routes() {
       <SkillRoutes />
       <Route exact path="/pilot">
         <Pilot />
+      </Route>
+      <Route exact path="/profile/:characterId?/:tabName?">    
+        <ProfilePage />
       </Route>
       <Route exact path="/xup">
         {authContext ? <Xup /> : <LoginRequired />}
