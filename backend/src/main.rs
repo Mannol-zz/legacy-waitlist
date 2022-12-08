@@ -1,4 +1,5 @@
 use std::{env, sync::Arc};
+use rocket::Request;
 
 mod app;
 mod config;
@@ -21,6 +22,26 @@ type DBEngine = sqlx::MySql;
 
 pub type DB = sqlx::Pool<DBEngine>;
 pub type DBTX<'c> = sqlx::Transaction<'c, DBEngine>;
+
+#[catch(401)]
+fn not_authorized(_req: &Request) -> String {
+    format!("401 Authorization Required")
+}
+
+#[catch(403)]
+fn forbidden(_req: &Request) -> String {
+    format!("403 Forbidden")
+}
+
+#[catch(404)]
+fn not_found(_req: &Request) -> String {
+    format!("404 Not Found")
+}
+
+#[catch(422)]
+fn unprocessable_entity(_req: &Request) -> String {
+    format!("422 Unprocessable Entity")
+}
 
 #[tokio::main]
 async fn main() {
@@ -56,6 +77,7 @@ async fn main() {
 
     let application = app::new(database, config);
     rocket::build()
+        .register("/", catchers![not_authorized, forbidden, not_found, unprocessable_entity])
         .mount("/", routes::routes())
         .manage(application)
         .attach(request_logger::RequestLogger {})

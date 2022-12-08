@@ -1,6 +1,6 @@
 import styled from "styled-components";
 
-const A =  styled.a`
+export default styled.a`
   color: ${(props) => props.theme.colors.highlight.text};
   text-decoration: none;
   &:hover {
@@ -14,5 +14,3 @@ const A =  styled.a`
     font-size: small;
   }
 `;
-
-export default A;
