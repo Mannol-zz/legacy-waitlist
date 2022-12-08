@@ -1,5 +1,5 @@
-import { useContext, useEffect, useState } from "react"
-import {  Route, useParams } from "react-router-dom";
+import { useContext } from "react"
+import {  Link, Route, useHistory, useParams } from "react-router-dom";
 import { AuthContext } from "../../contexts"
 import { useApi } from "../../api";
 import { usePageTitle } from "../../Util/title";
@@ -9,10 +9,11 @@ import BadgeIcon, { icons } from "../../Components/Badge";
 import styled from "styled-components";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faClipboardCheck, faComment, faHistory, faTasks, faUsers } from "@fortawesome/free-solid-svg-icons";
-import { Label, Select } from "../../Components/Form";
+import { Select } from "../../Components/Form";
 
 const ProfileMastDOM = styled.div`
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     padding: 0 1em 15px 1em;
 
@@ -48,60 +49,71 @@ const ProfileMastDOM = styled.div`
 const ProfileNavDom = styled.div`
     @media (min-width: 750px) {
         div.small { display: none; }
+        flex-basis: 100%;
     }
     @media (max-width: 750px) {
         div.large { display: none; }
+        flex-basis: unset;
     }
 
     div.large {
-        input { display: none; }
-        label { 
+        
+        padding-top: 20px;
+        a { 
             display: inline-block;
             margin: 0 0 -1px;
             padding: 15px 25px;
             font-weight: 600;
             text-align: center;
+            text-decoration: none;
             color: ${props => props.theme.colors.text};
             border: 2px solid transparent;
 
             svg { margin-right: 10px; }
 
-            &:hover {
+            &:hover, &.active {
                 cursor: pointer;
                 border-top: 2px solid ${props => props.theme.colors.highlight.active};
                 transition: all ease-in-out 0.3s;
             }
         }
-        input:checked + label {
-            color: ${props => props.theme.colors.text};
-            border-top: 2px solid ${props => props.theme.colors.highlight.active};
-            transition: all ease-in-out 0.3s;
-        }
     }
     div.small {
-        label {
-            display: inline-block;
-            padding-right: 20px;
-        }
         select { appearance: auto; }
     }
 `
 
 const ProfilePage = () => {
     const authContext = useContext(AuthContext);
-    const { characterId } = useParams();
+    const windowHistory = useHistory();
+    let { characterId } = useParams();
     const { tabName } = useParams();
 
     if (!authContext) {
         return <>You must <A href="/auth/start">Login</A> to view this page.</>
     }
 
-    // User does not have permissions to view this page
-    if (!authContext?.access["waitlist-tag:HQ-FC"] && characterId) {
-       window.location.assign(`/profile${tabName ? `/${tabName}` : ''}`);
+    if (!characterId) {
+        // To keep things clean, we want to have a target characterId
+        // if the value was not specified then let's set it to the users Current character
+        windowHistory.push(`/profile/${authContext.current.id}`);
     }
+    
+    if (!authContext?.access["waitlist-tag:HQ-FC"]) {
+        // if the user isn't an FC, we need to check they can view this character
+        let is_allowed = authContext.characters.some(character => {
+            if (character.id == characterId) {
+                return true;
+            }
+        })
 
-    return <View characterId={characterId !== null && Number.isInteger(characterId) ? characterId : authContext.current?.id} tabName={tabName ?? 'characters'} />
+        if (!is_allowed) {
+            windowHistory.push(`/profile/${authContext.current.id}${tabName ? `/${tabName}` : ''}`);
+            characterId = authContext.current.id;
+        }
+    }
+    
+    return <View characterId={characterId ?? authContext.current.id} />
 }
 
 export default ProfilePage;
@@ -129,46 +141,44 @@ const ProfileMast = ({ character }) => {
                     return <Tag tag={tag} key={tag} />
                 })}
             </div>
+            <ProfileNav
+                options={[{ icon: faUsers, text: "Characters" }, { icon: faClipboardCheck, text: "Fit Check" }, { icon: faHistory, text: "History" }, { icon: faTasks, text: "Skills" }, { icon: faComment, text: "Notes" }]}
+                characterId={character?.id}
+            />
         </ProfileMastDOM>
     )
 }
 
-const ProfileNav = ({ options, onChange }) => {
-    const [ tab, selectTab ] = useState(() => {
-        let urlParts = window.location.pathname.split('/');
-        if (Number.isInteger(urlParts[urlParts.length-1])) {
-            return "fit-check";
-        }
-        return urlParts[urlParts.length-1];
-    });
-    
-
-    useEffect(() => {
-        onChange(tab);
-    }, [tab]);
+const ProfileNav = ({ options, characterId, onChange }) => {   
+    const windowHistory = useHistory();
 
     return (
         <ProfileNavDom>   
             <div className="large">
                 {options.map((option, key) => {
+                    const url = `/profile/${characterId}/${option.text.toLowerCase().replace(/ /g, '-')}`;
+                    // isActive if pathname matches the TO url, OR if no page name is present in the URL and the tab is Characters
+                    // expected URL pathname scheme:  /profile/:characterId/:tabName?
+                    const isActive = window.location.pathname.split('/').length === 3 && key === 0 ? true : window.location.pathname == url;
+                    
                     return (
-                        <span key={key}>
-                            <input id={key} type="radio" name="profile-nav" checked={option.text == tab} onChange={e => selectTab(option.text)}/>
-                            <label htmlFor={key}>
-                                <FontAwesomeIcon fixedWidth icon={option.icon} /> {option.text}
-                            </label>
-                        </span>
+                        <Link key={key} to={url} className={ isActive ? 'active' : null}>
+                            <FontAwesomeIcon fixedWidth icon={option.icon} /> {option.text}
+                        </Link>
                     )
                 })}
             </div>
 
             <div className="small">
-                <Label>Page Navigation:</Label>
-                <Select value={tab} onChange={e => selectTab(e.target.value)}>
-                    {options.map((option, key) => {                    
-                        return <option key={key}> 
-                            {option.text}
-                        </option>
+                <Select value={window.location.pathname} onChange={(e) => windowHistory.push(e.target.value)}>
+                    {options.map((option, key) => {     
+                        const url = `/profile/${characterId}/${option.text.toLowerCase().replace(/ /g, '-')}`;
+
+                        return (
+                            <option key={key} value={url}>
+                                {option.text}
+                            </option>
+                        )
                     })}
                 </Select>
             </div>
@@ -176,21 +186,16 @@ const ProfileNav = ({ options, onChange }) => {
     );
 }
 
-const View = ({ characterId, tabName }) => {
+const View = ({ characterId }) => {
     const [ account ] = useApi(`/api/profile/${characterId}`);
     usePageTitle(account?.main?.name ?? `Profile`);
        
     return (
         <>
-            <ProfileMast character={account?.main} />
+            <ProfileMast character={account?.main} />   
 
-            <ProfileNav
-                options={[{ icon: faUsers, text: "Characters" }, { icon: faClipboardCheck, text: "Fit Check" }, { icon: faHistory, text: "History" }, { icon: faTasks, text: "Skills" }, { icon: faComment, text: "Notes" }]}
-                onChange={e => console.log(e)}//window.location.assign(`/profile/${characterId}/${e?.toLowerCase().replace(/ /g, "-")}`)}
-            />
-
-            <div style={{ padding: "10px" }}>
-                <Route exact path={[`/profile`, `/profile/:characterId(\\d+)`]}>
+            <div style={{ padding: "0px 16px 15px" }}>
+                <Route exact path={[`/profile/:characterId(\\d+)`, `/profile/:characterId/characters`]}>
                     Characters
                 </Route>
 
